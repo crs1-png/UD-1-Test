@@ -1,0 +1,24 @@
+name: Cleanup Workflow History
+
+on:
+  schedule:
+    - cron: '0 * * * *'   # jede Stunde
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  delete-runs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete old workflow runs
+        uses: Mattraks/delete-workflow-runs@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}   # reicht für das eigene Repo
+          repository: ${{ github.repository }}
+          retain_days: 0                      # alles älter als 0 Tage löschen
+          keep_minimum_runs: 0                # nichts behalten
+          # Optional filtern:
+          # workflow_name: "Persistent Runner"
