@@ -1,4 +1,4 @@
-name: Persistent Runner
+name: Persistent Runner2
 on:
   schedule:
     # Alle 5 Stunden (sicherer als 6, damit Lücken minimal bleiben)
