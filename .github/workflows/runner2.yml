@@ -1,4 +1,4 @@
-name: Persistent Runner2
+name: Persistent Runner
 on:
   schedule:
     # Alle 5 Stunden (sicherer als 6, damit Lücken minimal bleiben)
@@ -49,18 +49,39 @@ jobs:
             ps aux | grep cloudflared || true
           fi
 
-      - name: Clone private repository
+      - name: Clone repository & Branch bestimmen
         env:
           GH_PAT: ${{ secrets.GH_PAT }}
           GH_USERNAME: ${{ secrets.GH_USERNAME }}
           PRIVATE_REPO: ${{ secrets.PRIVATE_REPO }}
+          BRANCH_SECRET: ${{ secrets.BRANCH }}
         run: |
-          git clone --depth 1 https://${GH_USERNAME}:${GH_PAT}@github.com/${PRIVATE_REPO}.git app
+          git clone --no-single-branch --depth 1 https://${GH_USERNAME}:${GH_PAT}@github.com/${PRIVATE_REPO}.git app
           cd app
+
+          if [ -n "$BRANCH_SECRET" ]; then
+            # Weg 1: Fester Branch aus dem Secret "BRANCH"
+            BRANCH="$BRANCH_SECRET"
+            MODE="Fest über Secret BRANCH gesetzt"
+          else
+            # Weg 2: Automatisch den Branch mit der letzten Aktivität (Commit/Merge/Push) wählen
+            BRANCH=$(git for-each-ref --sort=-committerdate refs/remotes/origin/ --format='%(refname:short)' \
+                      | grep -v 'origin/HEAD' | head -n1 | sed 's#^origin/##')
+            MODE="Automatisch erkannt (aktivster Branch)"
+          fi
+
+          echo "=========================================="
+          echo "🔀 Branch: $BRANCH"
+          echo "   Modus:  $MODE"
+          echo "=========================================="
+
+          git checkout -B "$BRANCH" "origin/$BRANCH"
+          echo "ACTIVE_BRANCH=$BRANCH" >> $GITHUB_ENV
 
       - name: Diagnose vor dem Build
         working-directory: app
         run: |
+          echo "== Branch: $ACTIVE_BRANCH =="
           echo "== Speicherplatz =="
           df -h
           echo "== RAM =="
@@ -78,6 +99,7 @@ jobs:
       - name: Diagnose nach Fehler
         if: failure()
         run: |
+          echo "== Branch beim Fehler: $ACTIVE_BRANCH =="
           echo "== Speicherplatz nach Fehler =="
           df -h
           echo "== Kernel-Log (OOM-Check) =="
