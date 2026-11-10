@@ -1,0 +1,44 @@
+name: Keepalive
+
+on:
+  schedule:
+    - cron: "17 5,17 * * *"   # 2x täglich (UTC), bewusst nicht zur vollen Stunde
+  workflow_dispatch:           # erlaubt manuelles Starten zum Testen
+
+permissions:
+  contents: write              # nötig, damit der Workflow committen darf
+
+concurrency:
+  group: keepalive
+  cancel-in-progress: false
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
+
+      - name: Prüfen und ggf. Leerzeichen committen
+        env:
+          # Nur committen, wenn der letzte Commit älter ist als so viele Tage.
+          # "0" = bei jedem Lauf committen.
+          MAX_AGE_DAYS: "0"
+        run: |
+          last_commit=$(git log -1 --format=%ct)
+          now=$(date +%s)
+          age_days=$(( (now - last_commit) / 86400 ))
+
+          if [ "$age_days" -lt "$MAX_AGE_DAYS" ]; then
+            echo "Letzter Commit ist erst $age_days Tage alt. Nichts zu tun."
+            exit 0
+          fi
+
+          # Ein Leerzeichen an die Datei anhängen (wird bei Bedarf neu angelegt)
+          printf ' ' >> keepalive.txt
+
+          git config user.name "crs1-png"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add keepalive.txt
+          git commit -m "chore: keepalive"
+          git push
